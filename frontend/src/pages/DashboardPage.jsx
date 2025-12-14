@@ -1,82 +1,91 @@
 import { useEffect, useState } from "react";
 import api from "../api/axiosClient";
 import SweetList from "../components/SweetList";
+import SweetForm from "../components/SweetForm";
 
 function DashboardPage({ user }) {
   const [sweets, setSweets] = useState([]);
-  const [form, setForm] = useState({
-    name: "",
-    category: "",
-    price: "",
-    quantity: "",
-  });
+  const [search, setSearch] = useState(""); // 1) state for search
 
   const fetchSweets = async () => {
-    const res = await api.get("/sweets");
-    setSweets(res.data);
+    try {
+      const res = await api.get("/sweets");
+      setSweets(res.data);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load sweets");
+    }
   };
 
   useEffect(() => {
     fetchSweets();
   }, []);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleCreate = async (e) => {
+  const handleSearch = async (e) => { // 2) search handler
     e.preventDefault();
     try {
-      await api.post("/sweets", {
-        name: form.name,
-        category: form.category,
-        price: Number(form.price),
-        quantity: Number(form.quantity),
-      });
-      setForm({ name: "", category: "", price: "", quantity: "" });
+      if (!search.trim()) {
+        fetchSweets();
+        return;
+      }
+      const res = await api.get(
+        `/sweets/search?name=${encodeURIComponent(search)}`
+      );
+      setSweets(res.data);
+    } catch (err) {
+      console.error(err);
+      alert("Search failed");
+    }
+  };
+
+  const handlePurchase = async (sweetId) => {
+    try {
+      await api.post(`/sweets/${sweetId}/purchase`);
       fetchSweets();
     } catch (err) {
       console.error(err);
-      alert("Failed to create sweet (are you admin?)");
+      alert("Purchase failed");
+    }
+  };
+
+  const handleAddSweet = async (data) => {
+    try {
+      await api.post("/sweets", data);
+      fetchSweets();
+    } catch (err) {
+      console.error(err);
+      alert("Add sweet failed (must be admin)");
     }
   };
 
   return (
     <div>
       <h2>Dashboard</h2>
-      <SweetList sweets={sweets} />
 
-      {user?.role === "admin" && (
-        <div style={{ marginTop: "20px" }}>
-          <h3>Admin: Add Sweet</h3>
-          <form onSubmit={handleCreate}>
-            <input
-              name="name"
-              placeholder="Name"
-              value={form.name}
-              onChange={handleChange}
-            /><br/>
-            <input
-              name="category"
-              placeholder="Category"
-              value={form.category}
-              onChange={handleChange}
-            /><br/>
-            <input
-              name="price"
-              placeholder="Price"
-              value={form.price}
-              onChange={handleChange}
-            /><br/>
-            <input
-              name="quantity"
-              placeholder="Quantity"
-              value={form.quantity}
-              onChange={handleChange}
-            /><br/>
-            <button type="submit">Create Sweet</button>
-          </form>
-        </div>
+      {/* 3) search form inside return, above SweetList */}
+      <form onSubmit={handleSearch} style={{ marginBottom: "12px" }}>
+        <input
+          type="text"
+          placeholder="Search sweets by name"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button type="submit">Search</button>
+        <button
+          type="button"
+          onClick={() => {
+            setSearch("");
+            fetchSweets();
+          }}
+          style={{ marginLeft: "8px" }}
+        >
+          Clear
+        </button>
+      </form>
+
+      <SweetList sweets={sweets} onPurchase={handlePurchase} />
+      {user.role === "admin" && (
+        <SweetForm onSubmit={handleAddSweet} />
       )}
     </div>
   );
